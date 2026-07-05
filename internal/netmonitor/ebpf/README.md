@@ -1,43 +1,47 @@
 # eBPF connect hook assets
 
-- `connect.bpf.c`: CO-RE BPF program (go:build ignore) built with clang/llc.
-- `connect_bpfel.o`: compiled artifact embedded in Go via `program.go`.
-- `connect_bpfel_arm64.o`: ARM64 version of the compiled artifact.
-- `vmlinux.h`: BTF type definitions (regenerate from running kernel if needed).
-- `Makefile`: helper to rebuild the object locally.
+- `connect.bpf.c`: BPF source for TCP connect and UDP sendmsg hooks.
+- `connect_bpfel.o` and `connect_bpfel_arm64.o`: generated little-endian objects
+  embedded by `program.go`. These files are ignored, not committed.
+- `Makefile`: builds both objects with clang's BPF backend and libbpf headers.
 
-## Rebuild
+## Build from source
 
-Rebuild locally (Linux with clang and BTF available):
+On Debian/Ubuntu, install the build dependencies, then generate both objects:
+
 ```bash
-cd internal/netmonitor/ebpf
-make clean && make
-```
-Then re-run `go test ./...` to ensure the embedded object is updated.
-
-## Regenerate vmlinux.h
-
-If you encounter BTF-related verifier errors on a new kernel:
-```bash
-bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
-make clean && make
+sudo apt-get install clang gcc make libbpf-dev linux-libc-dev
+make ebpf # from the repository root
 ```
 
-## Kernel Compatibility
+The program uses `linux/bpf.h`'s stable `bpf_sock_addr` context. It does not
+access private kernel structs, so generating `vmlinux.h` from a running kernel
+is unnecessary. The objects still include BTF map/type metadata.
 
-The eBPF programs use CO-RE (Compile Once - Run Everywhere) and are designed to work with Linux kernels 5.x and 6.x.
+On macOS or Windows (using a POSIX shell with Docker), generate the same files
+in a Linux container before running Go commands:
 
-### CO-RE and Portability
-
-The compiled `.o` files contain BTF (BPF Type Format) information that allows them to adapt to different kernel versions at load time. The context fields used (`user_ip4`, `user_ip6`, `user_port`) are stable across kernel versions.
-
-The `vmlinux.h` file is gitignored because each build machine should generate it from its own kernel's BTF. However, the committed `.o` files should work across kernel versions thanks to CO-RE.
-
-If you encounter load errors on a specific kernel version, rebuild locally:
 ```bash
-bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
-make clean && make
+make ebpf-docker
 ```
+
+`make build`, `make test`, and `make smoke` prepare missing or stale objects.
+Raw `go build` / `go test` commands require `make ebpf` (or `make ebpf-docker`)
+first. Both objects are required on every platform because Go embeds both.
+After changing the source, regenerate them before testing. To force a rebuild:
+
+```bash
+make -C internal/netmonitor/ebpf clean
+make ebpf
+```
+
+CI builds the objects from the checked-out source, validates their layouts and
+Linux enforcement, and shares them only with jobs in that workflow run.
+Release builds independently generate objects from the release ref and supply
+them to GoReleaser, Alpine, and macOS builds. No contributor-supplied object
+files are used.
+
+## Kernel compatibility
 
 ### Kernel 6.x Notes
 

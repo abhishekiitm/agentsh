@@ -111,6 +111,8 @@ sudo dpkg -i agentsh_<VERSION>_linux_amd64.deb
 **From source (Linux)**
 
 ```bash
+# Debian/Ubuntu: dependencies for the embedded eBPF objects
+sudo apt-get install clang gcc make libbpf-dev linux-libc-dev
 make build
 sudo install -m 0755 bin/agentsh bin/agentsh-shell-shim /usr/local/bin
 ```
@@ -118,9 +120,14 @@ sudo install -m 0755 bin/agentsh bin/agentsh-shell-shim /usr/local/bin
 **From source (macOS)**
 
 ```bash
+# Generate embedded eBPF objects with Docker first
+make ebpf-docker
 # ESF+NE mode (full enforcement — Alpha, requires Xcode 15+)
 make build-macos-enterprise
 ```
+
+See [eBPF build instructions](internal/netmonitor/ebpf/README.md) for generated
+object requirements, including direct `go build` and `go test` usage.
 
 See [macOS Build Guide](docs/macos-build.md) for detailed macOS build instructions.
 

@@ -1,4 +1,4 @@
-.PHONY: build build-shim test lint clean proto ebpf
+.PHONY: build build-shim test lint clean proto ebpf ebpf-objects ebpf-docker
 .PHONY: smoke ptrace-test dns-test seccomp-probe bench
 .PHONY: completions package-snapshot package-release
 .PHONY: build-macos-enterprise build-macos-go build-swift assemble-bundle sign-bundle
@@ -14,7 +14,7 @@ GOCACHE ?= $(CURDIR)/.gocache
 GOMODCACHE ?= $(CURDIR)/.gomodcache
 GOPATH ?= $(CURDIR)/.gopath
 
-build:
+build: ebpf-objects
 	mkdir -p bin $(GOCACHE) $(GOMODCACHE) $(GOPATH)
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentsh ./cmd/agentsh
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentsh-shell-shim ./cmd/agentsh-shell-shim
@@ -35,11 +35,11 @@ proto:
 	  --go-grpc_out=. --go-grpc_opt=module=github.com/agentsh/agentsh \
 	  proto/agentsh/v1/pty.proto
 
-test:
+test: ebpf-objects
 	mkdir -p $(GOCACHE) $(GOMODCACHE) $(GOPATH)
 	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go test ./...
 
-smoke:
+smoke: ebpf-objects
 	bash scripts/smoke.sh
 
 ptrace-test:
@@ -63,9 +63,19 @@ lint:
 clean:
 	rm -rf bin build coverage.out dist
 
-# Rebuild eBPF objects from source (requires clang and Linux BTF headers)
+# Generate embedded eBPF objects (Linux: clang, libbpf-dev, linux-libc-dev).
 ebpf:
-	$(MAKE) -C internal/netmonitor/ebpf clean all
+	$(MAKE) -C internal/netmonitor/ebpf clean
+	$(MAKE) -C internal/netmonitor/ebpf all
+
+# Reuse freshly generated objects when building Go (also on macOS/Windows).
+ebpf-objects:
+	$(MAKE) -C internal/netmonitor/ebpf all
+
+# Portable generation for macOS/Windows contributors with Docker.
+ebpf-docker:
+	docker build -f Dockerfile.ebpf -t agentsh-ebpf-builder .
+	docker run --rm --user "$$(id -u):$$(id -g)" -v "$(CURDIR):/src" agentsh-ebpf-builder
 
 # Generate shell completions
 completions: build
@@ -90,7 +100,7 @@ package-release:
 # Build the Go binaries that ship in the app bundle. agentsh needs CGO for
 # system extension support (nofuse: no macFUSE headers required), matching
 # the release pipeline's rebuild.
-build-macos-go:
+build-macos-go: ebpf-objects
 	rm -rf build/go-local
 	mkdir -p build/go-local
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags nofuse $(LDFLAGS) -o build/go-local/agentsh ./cmd/agentsh
@@ -165,7 +175,7 @@ build-approval-dialog-windows:
 	@echo "Windows ApprovalDialog built: build/windows/agentsh-approval-dialog.exe"
 
 # Full Windows build (Go + driver + ApprovalDialog)
-build-windows-full: build-driver build-approval-dialog-windows
+build-windows-full: ebpf-objects build-driver build-approval-dialog-windows
 	mkdir -p bin
 	GOOS=windows GOARCH=amd64 go build -o bin/agentsh.exe ./cmd/agentsh
 	@echo "Windows build complete:"

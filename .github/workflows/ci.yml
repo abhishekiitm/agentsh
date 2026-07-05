@@ -11,11 +11,38 @@ env:
   GO_CACHE_VERSION: v4
 
 jobs:
+  ebpf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/build-ebpf
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Test generated object layouts and enforcement
+        run: |
+          go test ./internal/netmonitor/ebpf/...
+          go test -c -tags=integration -o "$RUNNER_TEMP/ebpf.test" ./internal/netmonitor/ebpf
+          sudo "$RUNNER_TEMP/ebpf.test" -test.v -test.run '^(TestIntegration_CIDRAllowAndBlock|TestPopulateRefreshAndCleanupCIDRs)$'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf/*.o
+          if-no-files-found: error
+
   test-linux:
+    needs: [ebpf]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - name: Install build deps
         run: sudo apt-get update && sudo apt-get install -y libfuse-dev libfuse3-dev libseccomp-dev pkg-config
@@ -57,10 +84,16 @@ jobs:
         run: scripts/test-assemble-macos-bundle.sh
 
   test-macos:
+    needs: [ebpf]
     runs-on: macos-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - name: Install FUSE-T
         run: |
@@ -97,10 +130,16 @@ jobs:
         run: go test ./...
 
   test-windows:
+    needs: [ebpf]
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - uses: actions/setup-go@v5
         with:
@@ -128,7 +167,7 @@ jobs:
           CGO_ENABLED: 0
 
   build-matrix:
-    needs: [test-linux, test-macos, test-windows]
+    needs: [ebpf, test-linux, test-macos, test-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -137,6 +176,11 @@ jobs:
         goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - uses: actions/setup-go@v5
         with:
@@ -171,10 +215,16 @@ jobs:
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=$CGO_ENABLED go build ./...
 
   build-linux-arm64-cgo:
+    needs: [ebpf]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - name: Install build deps
         run: |
@@ -221,11 +271,16 @@ jobs:
           PKG_CONFIG_LIBDIR: /usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
 
   integration:
-    needs: [test-linux]
+    needs: [ebpf, test-linux]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - name: Install build deps
         run: |
@@ -266,12 +321,17 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       vars.AWS_ECS_CLUSTER != ''
-    needs: [test-linux, integration]
+    needs: [ebpf, test-linux, integration]
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - uses: actions/setup-go@v5
         with:

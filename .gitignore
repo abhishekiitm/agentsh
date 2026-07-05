@@ -31,3 +31,7 @@ internal/netmonitor/ebpf/vmlinux.h
 build/
 /agentsh-unixwrap
 /agentsh-stub
+
+# Generated eBPF objects and header dependencies
+/internal/netmonitor/ebpf/*.o
+/internal/netmonitor/ebpf/*.d

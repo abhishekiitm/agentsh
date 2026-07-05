@@ -19,7 +19,22 @@ env:
   RELEASE_SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
 
 jobs:
+  ebpf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SOURCE_REF }}
+      - uses: ./.github/actions/build-ebpf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf/*.o
+          if-no-files-found: error
+
   goreleaser:
+    needs: [ebpf]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -27,6 +42,11 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ env.RELEASE_SOURCE_REF }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - uses: actions/setup-go@v5
         with:
@@ -141,7 +161,7 @@ jobs:
   # against the multi-arch golang:alpine image. Docker pulls the matching
   # arch variant natively on each runner (no QEMU needed).
   alpine-build:
-    needs: goreleaser  # Wait for release to be created
+    needs: [ebpf, goreleaser]  # Wait for release to be created
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -156,6 +176,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_SOURCE_REF }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - name: Build musl-static binaries in Alpine container
         env:
@@ -233,13 +258,18 @@ jobs:
   # Build, sign, and notarize macOS app bundle with system extension.
   build-macos-app:
     runs-on: macos-latest
-    needs: goreleaser
+    needs: [ebpf, goreleaser]
     environment: build
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_SOURCE_REF }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: internal/netmonitor/ebpf
 
       - name: Select Xcode
         run: |

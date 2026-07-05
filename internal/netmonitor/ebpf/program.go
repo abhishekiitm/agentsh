@@ -10,7 +10,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-// connect_bpfel.o is the CO-RE compiled object for connect hooks.
+// connect_bpfel.o is the compiled BPF object for connect hooks.
 //
 //go:embed connect_bpfel.o
 var bpfObjBytes []byte
@@ -56,7 +56,7 @@ func GetMapOverrides() MapOverrides {
 	}
 }
 
-// EmbeddedMapDefaults returns MaxEntries from the embedded CO-RE object.
+// EmbeddedMapDefaults returns MaxEntries from the embedded BPF object.
 func EmbeddedMapDefaults() (MapOverrides, error) {
 	spec, err := ebpf.LoadCollectionSpecFromReader(bytes.NewReader(bpfObjBytes))
 	if err != nil {
@@ -77,7 +77,7 @@ func EmbeddedMapDefaults() (MapOverrides, error) {
 	}, nil
 }
 
-// LoadConnectProgram loads the embedded CO-RE BPF object, applying map size overrides if provided.
+// LoadConnectProgram loads the embedded BPF object, applying map size overrides if provided.
 // Caller must attach the programs (handle_connect4/handle_connect6) and close the collection.
 func LoadConnectProgram() (*ebpf.Collection, error) {
 	obj := bpfObjBytes

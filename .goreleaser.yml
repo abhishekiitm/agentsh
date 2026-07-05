@@ -3,6 +3,7 @@ project_name: agentsh
 
 before:
   hooks:
+    - make ebpf-objects
     - go mod download
     - ./scripts/build-envshim.sh
     - ./scripts/build-ptracer.sh
