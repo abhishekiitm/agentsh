@@ -22,6 +22,18 @@ After installation, approve the system extension in **System Settings > General 
 | **ESF+NE** | 90% | Xcode 15+ | Full enforcement (Alpha) |
 | **Observation** | 25% | None | Testing, audit-only |
 
+## Prepare embedded eBPF objects
+
+Source builds on every platform embed the generated eBPF objects. Before any
+Go build, generate them in a Linux container (requires Docker):
+
+```bash
+make ebpf-docker
+```
+
+Repeat after changing the BPF source. See the [eBPF build guide](../internal/netmonitor/ebpf/README.md)
+for native Linux generation and CI artifact handling.
+
 ## ESF+NE Build (Enterprise — Alpha)
 
 ESF+NE provides near-Linux-level enforcement using Apple's Endpoint Security Framework and Network Extension. This build path is in Alpha — expect manual setup steps and breaking changes between releases.

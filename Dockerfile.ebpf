@@ -1,0 +1,7 @@
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang gcc make libbpf-dev linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+ENTRYPOINT ["make", "-C", "internal/netmonitor/ebpf"]
+CMD ["clean", "all"]

@@ -1,5 +1,5 @@
 FROM golang:1.25 AS builder
-RUN apt-get update && apt-get install -y libseccomp-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libseccomp-dev clang libbpf-dev linux-libc-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

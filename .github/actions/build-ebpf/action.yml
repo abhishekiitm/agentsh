@@ -1,0 +1,14 @@
+name: Build eBPF objects
+description: Compile both embedded objects from this checkout on Linux
+runs:
+  using: composite
+  steps:
+    - name: Install eBPF build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang gcc make libbpf-dev linux-libc-dev
+    - name: Generate eBPF objects from source
+      shell: bash
+      run: |
+        make ebpf
